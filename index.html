@@ -1,0 +1,309 @@
+echo "# florence-student-v1.2.html" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/hgalloway-arch/florence-student-v1.2.html.git
+git push -u origin main
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>A Decade in Florence – Student v1.2</title>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&display=swap" rel="stylesheet">
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f4efe6;
+  padding: 20px;
+}
+.container {
+  max-width: 1000px;
+  margin: auto;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+}
+h1 {
+  font-family: 'IM Fell English SC', serif;
+  text-align: center;
+}
+.card {
+  background: #faf7ef;
+  border: 1px solid #ddd;
+  padding: 15px;
+  margin-top: 15px;
+  border-radius: 8px;
+}
+.choice-btn {
+  display:block;
+  width:100%;
+  padding:10px;
+  margin-top:8px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+.choice-btn:hover {
+  background:#e6dfc8;
+}
+.choice-btn.disabled {
+  opacity:0.5;
+  pointer-events:none;
+}
+.choice-btn.selected {
+  background:#cfe3c8;
+  border:2px solid #2f6b2f;
+}
+.scoreboard {
+  display:flex;
+  justify-content:space-around;
+  margin-top:15px;
+  font-weight:bold;
+}
+.tension-bar {
+  height:18px;
+  background:linear-gradient(to right, green, yellow, red);
+  border-radius:10px;
+  margin-top:10px;
+  position:relative;
+}
+.tension-indicator {
+  height:18px;
+  width:5px;
+  background:black;
+  position:absolute;
+  top:0;
+  transition:left .4s ease;
+}
+.hidden { display:none; }
+textarea {
+  width:100%;
+  height:80px;
+}
+.lock-screen {
+  background:#eee;
+  padding:20px;
+  text-align:center;
+  border-radius:8px;
+  margin-top:20px;
+}
+.feedback {
+  font-style:italic;
+  margin-top:10px;
+  color:#444;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>A Decade in Florence</h1>
+
+<div id="startScreen">
+<h2>Select Your Character</h2>
+<button onclick="startGame('Lorenzo')">👑 Lorenzo de' Medici</button>
+<button onclick="startGame('Artist')">🎨 Isabella (Artist)</button>
+<button onclick="startGame('Priest')">⛪ Father Matteo</button>
+<button onclick="startGame('Savonarola')">🔥 Savonarola</button>
+<button onclick="resumeGame()">Resume Saved Game</button>
+</div>
+
+<div id="game" class="hidden">
+
+<div class="scoreboard">
+<div>Power: <span id="power">0</span></div>
+<div>Church: <span id="church">0</span></div>
+<div>Public: <span id="public">0</span></div>
+<div>Morality: <span id="morality">0</span></div>
+</div>
+
+<h3>Church–State Tension</h3>
+<div class="tension-bar">
+<div id="tensionIndicator" class="tension-indicator" style="left:10%;"></div>
+</div>
+
+<h2>Round <span id="roundNum">1</span></h2>
+
+<div id="eventCard" class="card"></div>
+
+<div id="choicesContainer" class="card"></div>
+
+<div id="feedback" class="feedback hidden"></div>
+
+<div id="reflectionSection" class="card hidden">
+<h3>Reflection</h3>
+<p><strong>Who gained power because of your decision?</strong></p>
+<textarea id="reflectionBox"></textarea>
+<button onclick="submitReflection()">Submit Reflection</button>
+<p id="reflectionMsg"></p>
+</div>
+
+<div id="roundLock" class="lock-screen hidden">
+<p><strong>Awaiting Teacher Advancement…</strong></p>
+<button onclick="manualUnlock()">Teacher Has Advanced</button>
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+let state = {
+role: "",
+power: 0,
+church: 0,
+public: 0,
+morality: 0,
+tension: 1,
+round: 0,
+choiceMade: false
+};
+
+const rounds = [
+{
+event: "A plague spreads across Florence.",
+dilemmas: {
+Lorenzo: [
+{text:"Fund public hospitals", effect:{power:1,public:2,morality:1,tension:-1}, feedback:"The public praises Medici generosity, but resources are strained."},
+{text:"Protect Medici wealth", effect:{power:2,public:-1,morality:-1,tension:1}, feedback:"Medici influence grows, but public resentment rises."},
+{text:"Appeal to Church authority", effect:{church:2,power:1,tension:-1}, feedback:"Church cooperation stabilizes the city, increasing religious influence."}
+],
+Artist: [
+{text:"Create hopeful art", effect:{public:2,morality:1}, feedback:"Your art lifts public spirits and builds popularity."},
+{text:"Seek Medici patron", effect:{power:1,public:1}, feedback:"Medici support increases your status but ties you to elite politics."},
+{text:"Sell work to Church", effect:{church:2,public:-1}, feedback:"Church patronage offers stability but limits artistic freedom."}
+],
+Priest: [
+{text:"Organize prayer processions", effect:{church:2,public:1}, feedback:"Religious unity strengthens Church authority."},
+{text:"Blame moral corruption", effect:{church:1,public:-1,tension:1}, feedback:"Fear increases Church control but causes public unrest."},
+{text:"Support hospitals", effect:{public:2,morality:1}, feedback:"Compassion improves Church image and public trust."}
+],
+Savonarola: [
+{text:"Preach reform sermons", effect:{church:1,morality:2,tension:1}, feedback:"Your influence grows, but elites feel threatened."},
+{text:"Condemn Medici luxury", effect:{public:2,church:-1,tension:1}, feedback:"Public support increases while Church leaders grow uneasy."},
+{text:"Call for fasting", effect:{morality:2}, feedback:"Spiritual devotion increases, but daily life becomes harder."}
+]
+}
+}
+];
+
+function startGame(role){
+resetGameState();
+state.role = role;
+state.power = 1;
+state.round = 0;
+document.getElementById("startScreen").classList.add("hidden");
+document.getElementById("game").classList.remove("hidden");
+nextRound();
+}
+
+function nextRound(){
+state.round++;
+state.choiceMade = false;
+loadRound();
+updateUI();
+saveGame();
+}
+
+function loadRound(){
+let roundData = rounds[state.round-1];
+document.getElementById("roundNum").innerText = state.round;
+document.getElementById("eventCard").innerHTML = "<strong>Event:</strong> " + roundData.event;
+
+let container = document.getElementById("choicesContainer");
+container.innerHTML = "<h3>Choose ONE action:</h3>";
+
+let dilemmas = roundData.dilemmas[state.role];
+
+dilemmas.forEach((choice, index) => {
+let preview = Object.entries(choice.effect).map(([k,v]) => `${v>0?'+':''}${v} ${k}`).join(", ");
+let btn = document.createElement("button");
+btn.className = "choice-btn";
+btn.innerText = choice.text + " (" + preview + ")";
+btn.onclick = () => makeChoice(choice, btn);
+container.appendChild(btn);
+});
+}
+
+function makeChoice(choice, btn){
+if(state.choiceMade) return;
+state.choiceMade = true;
+
+document.querySelectorAll(".choice-btn").forEach(b => b.classList.add("disabled"));
+btn.classList.remove("disabled");
+btn.classList.add("selected");
+
+for(let key in choice.effect){
+state[key] += choice.effect[key];
+}
+
+document.getElementById("feedback").innerText = choice.feedback;
+document.getElementById("feedback").classList.remove("hidden");
+
+updateUI();
+saveGame();
+
+document.getElementById("reflectionSection").classList.remove("hidden");
+}
+
+function submitReflection(){
+let text = document.getElementById("reflectionBox").value.trim();
+if(text.length < 20){
+document.getElementById("reflectionMsg").innerText = "Please write at least one full sentence.";
+return;
+}
+document.getElementById("reflectionSection").classList.add("hidden");
+document.getElementById("roundLock").classList.remove("hidden");
+}
+
+function manualUnlock(){
+document.getElementById("roundLock").classList.add("hidden");
+document.getElementById("feedback").classList.add("hidden");
+document.getElementById("reflectionBox").value = "";
+nextRound();
+}
+
+function updateUI(){
+document.getElementById("power").innerText = state.power;
+document.getElementById("church").innerText = state.church;
+document.getElementById("public").innerText = state.public;
+document.getElementById("morality").innerText = state.morality;
+document.getElementById("tensionIndicator").style.left = Math.min(state.tension*15,100) + "%";
+}
+
+function saveGame(){
+localStorage.setItem("florence_v12", JSON.stringify(state));
+}
+
+function resumeGame(){
+let saved = localStorage.getItem("florence_v12");
+if(saved){
+state = JSON.parse(saved);
+document.getElementById("startScreen").classList.add("hidden");
+document.getElementById("game").classList.remove("hidden");
+loadRound();
+updateUI();
+}
+}
+
+function resetGameState(){
+state = {
+role: "",
+power: 0,
+church: 0,
+public: 0,
+morality: 0,
+tension: 1,
+round: 0,
+choiceMade: false
+};
+}
+
+</script>
+
+</body>
+</html>
